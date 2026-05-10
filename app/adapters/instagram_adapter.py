@@ -19,7 +19,7 @@ import logging
 from typing import Any
 
 import httpx
-from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi import APIRouter, HTTPException, Query, Request 
 
 from app.brain import process_message
 from app.config import INSTAGRAM_ACCESS_TOKEN, INSTAGRAM_VERIFY_TOKEN
