@@ -60,16 +60,35 @@ async def instagram_webhook(request: Request):
     logger.debug("Instagram payload: %s", body)
 
     try:
-        entry = body["entry"][0]
-        messaging = entry["messaging"][0]
+        # 1. Obtener la entrada (entry)
+        entries = body.get("entry", [])
+        if not entries:
+            return {"status": "no_entry"}
+        
+        entry = entries[0]
+        
+        # 2. Buscar el evento de mensaje (Meta puede enviarlo en 'messaging' o en 'changes')
+        messaging_list = entry.get("messaging")
+        
+        if messaging_list:
+            event = messaging_list[0]
+        else:
+            # Si no hay 'messaging', intentamos buscar en 'changes'
+            changes = entry.get("changes", [])
+            if changes:
+                event = changes[0].get("value", {})
+            else:
+                logger.info("Webhook recibido sin datos de mensaje reconocibles")
+                return {"status": "unknown_format"}
 
-        sender_id: str = messaging["sender"]["id"]      # IGSID del usuario
-        message_obj: dict = messaging.get("message", {})
+        # 3. Extraer datos del remitente y el texto
+        sender_id: str = event.get("sender", {}).get("id")
+        message_obj: dict = event.get("message", {})
         message_text: str = message_obj.get("text", "")
 
-        if not message_text:
-            logger.info("Mensaje sin texto de IG %s — ignorando", sender_id)
-            return {"status": "no_text"}
+        if not sender_id or not message_text:
+            logger.info("Evento incompleto de IG — ignorando")
+            return {"status": "incomplete_event"}
 
         # Recuperar historial
         context = get_context(sender_id)
@@ -82,7 +101,7 @@ async def instagram_webhook(request: Request):
             current_context=context,
         )
 
-        # Procesar con el Cerebro Central
+        # Procesar con el Cerebro Central (brain.py)
         output = process_message(incoming)
 
         # Enviar respuesta vía Instagram Messaging API
@@ -94,10 +113,10 @@ async def instagram_webhook(request: Request):
             "intent": output.metadata.intent,
         }
 
-    except (KeyError, IndexError) as exc:
-        logger.error("Error parseando payload de Instagram: %s", exc)
-        raise HTTPException(status_code=400, detail="Payload inválido") from exc
-
+    except Exception as exc:
+        logger.error("Error procesando webhook de Instagram: %s", exc)
+        # Cambiamos a 200 para que Meta no marque error de servidor mientras pruebas
+        return {"status": "error", "detail": str(exc)}
 
 # ─── Envío de Mensajes ────────────────────────────────────────────────────────
 
@@ -121,3 +140,4 @@ async def _send_instagram_message(recipient_id: str, text: str) -> None:
             )
         else:
             logger.info("Mensaje enviado a IGSID=%s ✅", recipient_id)
+
