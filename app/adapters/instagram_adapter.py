@@ -21,8 +21,12 @@ from typing import Any
 import httpx
 from fastapi import APIRouter, HTTPException, Query, Request 
 
+import os
+
 from app.brain import process_message
 from app.config import INSTAGRAM_ACCESS_TOKEN, INSTAGRAM_VERIFY_TOKEN
+
+INSTAGRAM_ACCOUNT_ID = os.getenv("INSTAGRAM_ACCOUNT_ID", "me")
 from app.db_service import get_context
 from app.models import IncomingMessage, Platform
 
@@ -122,7 +126,7 @@ async def instagram_webhook(request: Request):
 
 async def _send_instagram_message(recipient_id: str, text: str) -> None:
     """Envía un mensaje de texto al usuario usando la Instagram Messaging API."""
-    url = f"{GRAPH_API_URL}/me/messages"
+    url = f"{GRAPH_API_URL}/{INSTAGRAM_ACCOUNT_ID}/messages"
     headers = {
         "Authorization": f"Bearer {INSTAGRAM_ACCESS_TOKEN}",
         "Content-Type": "application/json",
@@ -140,4 +144,3 @@ async def _send_instagram_message(recipient_id: str, text: str) -> None:
             )
         else:
             logger.info("Mensaje enviado a IGSID=%s ✅", recipient_id)
-
